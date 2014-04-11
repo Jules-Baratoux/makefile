@@ -1,0 +1,121 @@
+#!/usr/bin/make
+## ┌───────────────────────────────────────────────────────────────────────────┐
+## │                            MAKEFILE LIBRARY                               │
+## └───────────────────────────────────────────────────────────────────────────┘
+## jules@baratoux.fr
+
+
+# compilation flags
+F.C          += $(add)
+F.C          += $(ADD)
+
+# link flags
+F.L          +=
+
+# include flags
+F.I          += -I $(DIR.H)
+
+# define flags
+F.D          +=
+
+
+DIR.H         = include/
+DIR.C         = src/
+DIR.O         = .obj/
+
+
+
+## VARIABLES ───────────────────────────────────────────────────────────────────
+
+ECHO          = @/bin/echo -e $(ES)"-"$(EE)
+RM            = rm -f
+AR            = ar rcs
+
+ifeq ($(INSIDE_EMACS), t)
+     ES      ?= ""
+     EE      ?= ""
+     F.C     += -ggdb3 -Og -Winline
+     INIT    += tags
+else
+     ES      ?= "\033[1;34m"
+     EE      ?= "\033[m"
+endif
+
+
+EXTENSION     = $(shell echo $(wordlist 1,1, $(SRCS)) | sed 's|.*\.\(.*\)|\1|')
+
+ifeq ($(EXTENSION), cpp)
+     c        = .cpp
+     CC       = g++
+     ifeq ($(LD), ld)
+         LD           = g++
+     endif
+else
+     c        = .c
+     CC       = gcc
+     ifeq ($(LD), ld)
+         LD           = gcc
+     endif
+endif
+
+SRCD          = $(SRCS:%$c=$(DIR.C)%$c)
+OBJS          = $(SRCD:$(DIR.C)%$c=$(DIR.O)%.o)
+DEPS          = $(OBJS:.o=.d)
+
+
+
+## RULES ───────────────────────────────────────────────────────────────────────
+
+init:          $(INIT)
+
+# Shared libraries
+compile.so:	dirs $(OBJS)
+		$(ECHO) "options" $(F.C) $(F.D) "\n"
+		$(ECHO) $(LD) $(F.L) $(wordlist 1,4, $(notdir $(OBJS)))"..."
+		@$(LD) -o $(NAME) $(OBJS) $(F.L)
+
+
+# Static libraries
+compile.a:	dirs $(OBJS)
+		$(ECHO) "options" $(F.C) $(F.D) "\n"
+		$(ECHO) ar rcs $(wordlist 1,4, $(notdir $(OBJS)))"..."
+		@ar rcs $(NAME) $(OBJS)
+
+
+# Binary
+compile:	dirs $(OBJS)
+		@$(ECHO) "options" $(F.C) $(F.D) "\n"
+		@$(ECHO) $(LD) $(F.L) $(wordlist 1,4, $(notdir $(OBJS)))"..."
+		$(LD) -o $(NAME) $(OBJS) $(F.L)
+
+remove_objects:
+		$(ECHO) rm $(wordlist 1,4, $(notdir $(OBJS)))"..."
+		$(ECHO) rm $(wordlist 1,4, $(notdir $(DEPS)))"..."
+		@$(RM) -R $(DIR.O)*
+
+
+remove_name:
+		$(ECHO) rm $(NAME)
+		@$(RM) $(NAME)
+		@echo
+
+dirs:
+		@mkdir -p $(DIR.H) $(DIR.C) $(DIR.O)
+		@mkdir -p `find $(DIR.C) -type d | sed s-$(DIR.C)-$(DIR.O)-`
+		$(ECHO) mkdir $(DIR.H) $(DIR.C) $(DIR.O) `find $(DIR.C) -type d | sed s-$(DIR.C)-$(DIR.O)-`
+
+tree:
+		@which tree && tree -CN --dirsfirst -I TAGS
+
+tags:
+		$(ECHO) "generate tags \n"
+		-@cd $(DIR.C) && etags `find ../$(DIR.C) -name "*$c"` `find ../$(DIR.H) -regex ".*\.h[hp]+"`
+
+
+$(DIR.O)%.o:    $(DIR.C)%$c
+		$(ECHO) $(notdir $@)
+		@$(CC) $(F.I) $(F.C) $(F.D) -MMD -c -o $@ $<
+
+-include $(DEPS)
+
+.PHONY:         all clean compile dirs dlib_compile fclean init lib_compile re remove_name remove_objects tags tree
